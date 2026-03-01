@@ -42,20 +42,8 @@ next-env.d.ts
 
 *test*
 
-# -----------------------
-# Python backend
-# -----------------------
+*.yaml
+*.venv
 
-# Virtual environments
-backend/venv/
-venv/
-.env/
-
-# Python cache
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-# FastAPI / Python misc
-*.sqlite3
+sample.gz
+manifest.json
