@@ -1184,7 +1184,7 @@ export default function PaperGraph() {
                 >
                     STELLAR
                     <br />
-                    PAPERS
+                    MAPS
                 </div>
 
                 <div
