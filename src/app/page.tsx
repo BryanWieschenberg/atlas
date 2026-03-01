@@ -1,3 +1,10 @@
+import PaperGraph from "@/components/PaperGraph";
+
 export default function Home() {
-    return <h1 className="text-red-500">Hello world</h1>;
+    return (
+        <>
+            <PaperGraph />
+            <p className="text-red-500">hi</p>
+        </>
+    );
 }
