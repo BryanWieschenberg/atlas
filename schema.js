@@ -13,10 +13,6 @@ db.createCollection("users", {
                     bsonType: "string",
                     description: "must be a string and is required",
                 },
-                handle: {
-                    bsonType: "string",
-                    description: "must be a string (optional for OAuth)",
-                },
                 email: {
                     bsonType: "string",
                     pattern: "^.+@.+$",
@@ -51,7 +47,7 @@ db.createCollection("users", {
 
 // Create a unique index for email and handle
 db.users.createIndex({ email: 1 }, { unique: true });
-db.users.createIndex({ handle: 1 }, { unique: true, sparse: true });
+db.users.createIndex({ username: 1 }, { unique: true });
 
 // 2. Saved Papers Collection
 db.createCollection("saved_papers", {

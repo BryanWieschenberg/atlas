@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import type { PaperNode, GraphEdge, GraphResponse } from "../../types/graph";
+import AuthButtons from "./AuthButtons";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
     ssr: false,
@@ -216,7 +217,12 @@ export default function PaperGraph() {
     }, [graphData]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
-        <div className="relative w-full h-screen bg-gray-950">
+        <div className="relative w-full h-screen bg-gray-100 dark:bg-gray-950">
+            {/* Auth buttons */}
+            <div className="absolute top-4 right-4 z-20">
+                <AuthButtons />
+            </div>
+
             {/* Search bar */}
             <form onSubmit={handleSubmit} className="absolute top-4 left-4 z-10 flex gap-2">
                 <input
@@ -224,12 +230,12 @@ export default function PaperGraph() {
                     value={inputVal}
                     onChange={(e) => setInputVal(e.target.value)}
                     placeholder="Search by keyword..."
-                    className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm w-96 focus:outline-none focus:border-blue-500"
+                    className="px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm w-96 focus:outline-none focus:border-blue-500"
                 />
                 <select
                     value={limitVal}
                     onChange={(e) => setLimitVal(parseInt(e.target.value))}
-                    className="px-2 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:outline-none"
+                    className="px-2 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none"
                 >
                     <option value={50}>50</option>
                     <option value={100}>100</option>
@@ -250,7 +256,7 @@ export default function PaperGraph() {
                     className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
                         filtersOpen
                             ? "bg-blue-600 border-blue-500 text-white"
-                            : "bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-500"
+                            : "bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500"
                     }`}
                 >
                     ⚙ Filters
@@ -259,11 +265,13 @@ export default function PaperGraph() {
 
             {/* Filter panel */}
             {filtersOpen && graphData && (
-                <div className="absolute top-16 left-4 z-10 w-72 bg-gray-900 border border-gray-700 rounded-lg p-4 text-white shadow-2xl space-y-4 max-h-[75vh] overflow-y-auto">
+                <div className="absolute top-16 left-4 z-10 w-72 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-gray-900 dark:text-white shadow-2xl space-y-4 max-h-[75vh] overflow-y-auto">
                     {/* Domain toggles */}
                     <div>
                         <div className="flex items-center justify-between mb-2">
-                            <p className="text-xs font-medium text-gray-300">Domains</p>
+                            <p className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                                Domains
+                            </p>
                             <button
                                 onClick={toggleAllDomains}
                                 className="text-xs text-blue-400 hover:underline"
@@ -277,7 +285,7 @@ export default function PaperGraph() {
                             {domainsRef.current.map((d) => (
                                 <label
                                     key={d}
-                                    className="flex items-center gap-2 cursor-pointer text-xs text-gray-400 hover:text-gray-200"
+                                    className="flex items-center gap-2 cursor-pointer text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                                 >
                                     <input
                                         type="checkbox"
@@ -379,10 +387,10 @@ export default function PaperGraph() {
                 <div className="absolute inset-0 flex items-center justify-center">
                     <div className="text-center max-w-md">
                         <p className="text-4xl mb-4">🔬</p>
-                        <h2 className="text-xl font-semibold text-white mb-2">
+                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                             Explore Academic Research
                         </h2>
-                        <p className="text-gray-400 text-sm leading-relaxed">
+                        <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
                             Search any topic to visualize the citation network of academic papers.
                             Try keywords like <em>quantum computing</em>,{" "}
                             <em>CRISPR gene editing</em>, <em>transformer architecture</em>, or{" "}
@@ -394,10 +402,12 @@ export default function PaperGraph() {
 
             {/* Loading state */}
             {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-950/80 z-20">
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-100/80 dark:bg-gray-950/80 z-20">
                     <div className="text-center">
                         <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                        <p className="text-gray-300 text-sm">Fetching papers...</p>
+                        <p className="text-gray-600 dark:text-gray-300 text-sm">
+                            Fetching papers...
+                        </p>
                     </div>
                 </div>
             )}
@@ -460,7 +470,7 @@ export default function PaperGraph() {
 
             {/* Stats bar */}
             {filteredGraphData && !loading && (
-                <div className="absolute top-4 right-4 z-10 bg-gray-900/90 border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-400">
+                <div className="absolute top-14 right-4 z-10 bg-white/90 dark:bg-gray-900/90 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
                     {filteredGraphData.nodes.length} papers · {filteredGraphData.links.length} edges
                     {graphData && filteredGraphData.nodes.length < graphNodes.length && (
                         <span className="text-gray-500"> (filtered from {graphNodes.length})</span>
@@ -470,10 +480,10 @@ export default function PaperGraph() {
 
             {/* Detail panel */}
             {selected && (
-                <div className="absolute bottom-4 left-4 z-10 w-[420px] max-h-[60vh] overflow-y-auto bg-gray-900 border border-gray-700 rounded-lg p-5 text-white shadow-2xl">
+                <div className="absolute bottom-4 left-4 z-10 w-[420px] max-h-[60vh] overflow-y-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-5 text-gray-900 dark:text-white shadow-2xl">
                     <button
                         onClick={() => setSelected(null)}
-                        className="absolute top-3 right-3 text-gray-400 hover:text-white text-lg"
+                        className="absolute top-3 right-3 text-gray-400 hover:text-gray-900 dark:hover:text-white text-lg"
                     >
                         ✕
                     </button>
@@ -552,8 +562,8 @@ export default function PaperGraph() {
             )}
 
             {/* Legend */}
-            <div className="absolute bottom-4 right-4 z-10 bg-gray-900/80 border border-gray-700 rounded-lg p-3 text-xs text-gray-400 space-y-1 max-h-[50vh] overflow-y-auto">
-                <p className="text-gray-300 font-medium mb-1">Domains</p>
+            <div className="absolute bottom-4 right-4 z-10 bg-white/80 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-xs text-gray-500 dark:text-gray-400 space-y-1 max-h-[50vh] overflow-y-auto">
+                <p className="text-gray-600 dark:text-gray-300 font-medium mb-1">Domains</p>
                 {legendEntries.map((entry) => (
                     <div key={entry.label} className="flex items-center gap-2">
                         <span

@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { HiEye, HiEyeOff } from "react-icons/hi";
+import ThemeToggle from "../../components/ThemeToggle";
 
 export default function SignUpForm() {
     const router = useRouter();
@@ -13,8 +14,6 @@ export default function SignUpForm() {
     const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
-    const [handle, setHandle] = useState("");
-    const [handleError, setHandleError] = useState<string | null>(null);
     const [password, setPassword] = useState("");
 
     const pwRequirements = [
@@ -42,18 +41,6 @@ export default function SignUpForm() {
                   ? "Good"
                   : "Strong";
 
-    const sanitizeHandle = (value: string) => {
-        const cleaned = value.toLowerCase().replace(/\s+/g, "-");
-
-        if (!/^[a-z0-9-]*$/.test(cleaned)) {
-            setHandleError("Can only contain letters, numbers, and dashes");
-        } else {
-            setHandleError(null);
-        }
-
-        setHandle(cleaned);
-    };
-
     const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setError(null);
@@ -68,7 +55,6 @@ export default function SignUpForm() {
         const form = new FormData(e.currentTarget);
         const payload = {
             username: String(form.get("username")),
-            handle: String(form.get("handle")),
             email: String(form.get("email")),
             password: String(form.get("password")),
             confirmPassword: String(form.get("confirmPassword")),
@@ -108,7 +94,7 @@ export default function SignUpForm() {
 
                 const loginRes = await signIn("credentials", {
                     redirect: false,
-                    handleOrEmail: payload.email,
+                    usernameOrEmail: payload.email,
                     password: payload.password,
                 });
 
@@ -148,8 +134,17 @@ export default function SignUpForm() {
     }, []);
 
     return (
-        <div className="flex justify-center pt-8 h-full overflow-y-auto pb-8">
-            <div className="max-w-md w-full p-8 border-2 rounded-2xl h-fit">
+        <div className="flex flex-col items-center pt-8 h-full overflow-y-auto pb-8">
+            <div className="w-full max-w-md flex items-center justify-between mb-4 px-2">
+                <Link
+                    href="/"
+                    className="text-sm text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-1"
+                >
+                    ← Back to Atlas
+                </Link>
+                <ThemeToggle />
+            </div>
+            <div className="max-w-md w-full p-8 border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-2xl h-fit">
                 <h1 className={`text-2xl font-bold text-center ${error ? "mb-3" : "mb-8"}`}>
                     Sign Up
                 </h1>
@@ -169,30 +164,6 @@ export default function SignUpForm() {
                         className="w-full border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-300 dark:focus:border-blue-700 dark:focus:ring-blue-600"
                         required
                     />
-
-                    <div className="relative">
-                        <span className="absolute inset-y-0 left-3 flex items-center font-bold pointer-events-none">
-                            @
-                        </span>
-                        <input
-                            name="handle"
-                            type="text"
-                            placeholder="handle"
-                            value={handle}
-                            onChange={(e) => sanitizeHandle(e.target.value)}
-                            className={`w-full border rounded px-3 py-2 pl-8 focus:outline-none focus:ring ${
-                                handleError
-                                    ? "focus:border-red-300 dark:focus:border-red-700 dark:focus:ring-red-600"
-                                    : "focus:border-blue-300 dark:focus:border-blue-700 dark:focus:ring-blue-600"
-                            }`}
-                            required
-                        />
-                    </div>
-                    {handleError && (
-                        <p className="text-red-600 dark:text-red-400 text-sm text-center">
-                            {handleError}
-                        </p>
-                    )}
 
                     <input
                         name="email"

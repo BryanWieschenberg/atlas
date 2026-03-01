@@ -37,26 +37,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         Credentials({
             name: "Credentials",
             credentials: {
-                handleOrEmail: { label: "Email or Handle", type: "text" },
+                usernameOrEmail: { label: "Username or Email", type: "text" },
                 password: { label: "Password", type: "password" },
             },
             async authorize(credentials) {
                 try {
                     const creds = credentials as
-                        | { handleOrEmail: string; password: string }
+                        | { usernameOrEmail: string; password: string }
                         | undefined;
 
-                    if (!creds?.handleOrEmail || !creds?.password) {
+                    if (!creds?.usernameOrEmail || !creds?.password) {
                         throw new Error("Missing credentials");
                     }
 
                     const db = await getDb();
-                    const isEmail =
-                        creds.handleOrEmail.includes("@") && !creds.handleOrEmail.startsWith("@");
+                    const isEmail = creds.usernameOrEmail.includes("@");
 
                     const query = isEmail
-                        ? { email: creds.handleOrEmail }
-                        : { handle: creds.handleOrEmail };
+                        ? { email: creds.usernameOrEmail }
+                        : { username: creds.usernameOrEmail };
 
                     const user = await db.collection("users").findOne(query);
 

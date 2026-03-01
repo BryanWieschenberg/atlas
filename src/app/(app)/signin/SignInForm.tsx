@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { HiEye, HiEyeOff } from "react-icons/hi";
+import ThemeToggle from "../../components/ThemeToggle";
 
 export default function SignInForm() {
     const router = useRouter();
@@ -46,7 +47,7 @@ export default function SignInForm() {
         setSubmitting(true);
 
         const form = new FormData(e.currentTarget);
-        const handleOrEmail = String(form.get("handleOrEmail"));
+        const usernameOrEmail = String(form.get("usernameOrEmail"));
         const password = String(form.get("password"));
 
         const gre = window.grecaptcha;
@@ -83,7 +84,7 @@ export default function SignInForm() {
 
                 const loginRes = await signIn("credentials", {
                     redirect: false,
-                    handleOrEmail: handleOrEmail,
+                    usernameOrEmail: usernameOrEmail,
                     password: password,
                 });
 
@@ -124,8 +125,17 @@ export default function SignInForm() {
     }, []);
 
     return (
-        <div className="flex justify-center pt-8 h-full overflow-y-auto pb-8">
-            <div className="max-w-md w-full p-8 border-2 rounded-2xl h-fit">
+        <div className="flex flex-col items-center pt-8 h-full overflow-y-auto pb-8">
+            <div className="w-full max-w-md flex items-center justify-between mb-4 px-2">
+                <Link
+                    href="/"
+                    className="text-sm text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-1"
+                >
+                    ← Back to Atlas
+                </Link>
+                <ThemeToggle />
+            </div>
+            <div className="max-w-md w-full p-8 border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-2xl h-fit">
                 <h1 className={`text-2xl font-bold text-center ${error ? "mb-3" : "mb-8"}`}>
                     Sign In
                 </h1>
@@ -139,9 +149,9 @@ export default function SignInForm() {
 
                 <form className="space-y-4" onSubmit={handleSignin}>
                     <input
-                        name="handleOrEmail"
+                        name="usernameOrEmail"
                         type="text"
-                        placeholder="@handle or Email Address"
+                        placeholder="Username or Email Address"
                         className="w-full border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-300 dark:focus:border-blue-700 dark:focus:ring-blue-600"
                         required
                         autoComplete="email"

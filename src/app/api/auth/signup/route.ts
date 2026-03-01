@@ -5,9 +5,9 @@ import bcrypt from "bcrypt";
 export async function POST(request: Request) {
     try {
         const payload = await request.json();
-        const { username, handle, email, password, confirmPassword, recaptchaToken } = payload;
+        const { username, email, password, confirmPassword, recaptchaToken } = payload;
 
-        if (!username || !handle || !email || !password || !confirmPassword || !recaptchaToken) {
+        if (!username || !email || !password || !confirmPassword || !recaptchaToken) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
         }
 
@@ -31,15 +31,15 @@ export async function POST(request: Request) {
 
         // Check for existing handle or email
         const existing = await usersCol.findOne({
-            $or: [{ email }, { handle }],
+            $or: [{ email }, { username }],
         });
 
         if (existing) {
             if (existing.email === email) {
                 return NextResponse.json({ error: "Email already in use" }, { status: 400 });
             }
-            if (existing.handle === handle) {
-                return NextResponse.json({ error: "Handle already in use" }, { status: 400 });
+            if (existing.username === username) {
+                return NextResponse.json({ error: "Username already in use" }, { status: 400 });
             }
         }
 
@@ -47,7 +47,6 @@ export async function POST(request: Request) {
 
         await usersCol.insertOne({
             username,
-            handle,
             email,
             password: hashedPassword,
             provider: "credentials",
