@@ -1,0 +1,754 @@
+"use client";
+
+import { useState, useCallback, useRef, useEffect } from "react";
+import dynamic from "next/dynamic";
+const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
+  ssr: false,
+  loading: () => (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "400px" }}>
+      <p>Loading Graph...</p>
+    </div>
+  ),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────────────────────────────────────
+const USE_MOCK = true; //Determines if using mock data or not
+const API_BASE = "http://localhost:3001";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────────────────────────────────────────
+interface Paper {
+    paperId: string;
+    title: string;
+    year: number | null;
+    citationCount: number;
+    fieldsOfStudy: string[];
+    abstract: string;
+    _score?: number;
+}
+
+interface GraphNode {
+    id: string;
+    title: string;
+    year: number | null;
+    citations: number;
+    fields: string[];
+    abstract: string;
+    color: string;
+    isPrimary: boolean;
+    // injected by force-graph at runtime
+    x?: number;
+    y?: number;
+}
+
+interface GraphLink {
+    source: string | GraphNode;
+    target: string | GraphNode;
+}
+
+interface GraphData {
+    nodes: GraphNode[];
+    links: GraphLink[];
+}
+
+interface MockRef {
+    sourceId: string;
+    targets: string[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COLORS
+// ─────────────────────────────────────────────────────────────────────────────
+const FIELD_COLORS: Record<string, string> = {
+    "Computer Science":      "#4fc3f7",
+    "Mathematics":           "#a78bfa",
+    "Physics":               "#fb923c",
+    "Biology":               "#34d399",
+    "Medicine":              "#f472b6",
+    "Chemistry":             "#fbbf24",
+    "Engineering":           "#22d3ee",
+    "Economics":             "#f97316",
+    "Psychology":            "#e879f9",
+    "Sociology":             "#2dd4bf",
+    "Political Science":     "#fb7185",
+    "History":               "#ff6e40",
+    "Philosophy":            "#94a3b8",
+    "Art":                   "#e879f9",
+    "Linguistics":           "#818cf8",
+    "Environmental Science": "#4ade80",
+};
+const DEFAULT_COLOR = "#7dd3fc";
+
+function fieldColor(fields: string[]): string {
+    if (!fields || !fields.length) return DEFAULT_COLOR;
+    return FIELD_COLORS[fields[0]] ?? DEFAULT_COLOR;
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+    if (!hex || hex.length < 7) return { r: 125, g: 200, b: 255 };
+    return {
+        r: parseInt(hex.slice(1, 3), 16),
+        g: parseInt(hex.slice(3, 5), 16),
+        b: parseInt(hex.slice(5, 7), 16),
+    };
+}
+
+// Shared radius logic — used by both draw and pointer-area so hover is pixel-perfect
+function getNodeRadius(citations: number, isPrimary: boolean, isHovered = false): number {
+    const base = isPrimary
+        ? Math.max(3, Math.min(10, 3 + Math.log1p(citations) * 0.9))
+        : Math.max(2, Math.min(7,  2 + Math.log1p(citations) * 0.6));
+    return isHovered ? base * 1.5 : base;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MOCK DATA
+// ─────────────────────────────────────────────────────────────────────────────
+const MOCK_PAPERS: Paper[] = [
+    { paperId: "p1",  title: "Attention Is All You Need",                             year: 2017, citationCount: 91000,  fieldsOfStudy: ["Computer Science"], abstract: "transformer self-attention sequence model architecture" },
+    { paperId: "p2",  title: "BERT: Pre-training of Deep Bidirectional Transformers", year: 2018, citationCount: 55000,  fieldsOfStudy: ["Computer Science"], abstract: "language model pre-training bert nlp bidirectional" },
+    { paperId: "p3",  title: "GPT-3: Language Models are Few-Shot Learners",          year: 2020, citationCount: 30000,  fieldsOfStudy: ["Computer Science"], abstract: "large language model few-shot gpt autoregressive" },
+    { paperId: "p4",  title: "Deep Residual Learning for Image Recognition",          year: 2015, citationCount: 120000, fieldsOfStudy: ["Computer Science", "Mathematics"], abstract: "resnet residual deep learning image classification skip connection" },
+    { paperId: "p5",  title: "Generative Adversarial Networks",                       year: 2014, citationCount: 45000,  fieldsOfStudy: ["Computer Science", "Mathematics"], abstract: "GAN generative adversarial generator discriminator training" },
+    { paperId: "p6",  title: "Adam: A Method for Stochastic Optimization",            year: 2014, citationCount: 100000, fieldsOfStudy: ["Mathematics", "Computer Science"], abstract: "adam optimizer gradient descent stochastic adaptive" },
+    { paperId: "p7",  title: "Dropout: Preventing Neural Network Overfitting",        year: 2014, citationCount: 35000,  fieldsOfStudy: ["Computer Science"], abstract: "dropout regularization overfitting neural network training" },
+    { paperId: "p8",  title: "ImageNet Large Scale Visual Recognition Challenge",     year: 2015, citationCount: 42000,  fieldsOfStudy: ["Computer Science"], abstract: "imagenet dataset image recognition benchmark classification" },
+    { paperId: "p9",  title: "Playing Atari with Deep Reinforcement Learning",        year: 2013, citationCount: 18000,  fieldsOfStudy: ["Computer Science"], abstract: "deep Q-network reinforcement learning atari games DQN" },
+    { paperId: "p10", title: "An Image is Worth 16x16 Words: Vision Transformers",   year: 2020, citationCount: 22000,  fieldsOfStudy: ["Computer Science"], abstract: "vision transformer ViT image patches self-attention" },
+    { paperId: "p11", title: "CLIP: Learning Transferable Visual Models From NLP",   year: 2021, citationCount: 14000,  fieldsOfStudy: ["Computer Science"], abstract: "contrastive language image pretraining CLIP zero-shot" },
+    { paperId: "p12", title: "Diffusion Models Beat GANs on Image Synthesis",        year: 2021, citationCount: 8000,   fieldsOfStudy: ["Computer Science", "Mathematics"], abstract: "diffusion probabilistic model image synthesis guidance" },
+    { paperId: "p13", title: "Neural Ordinary Differential Equations",                year: 2018, citationCount: 6500,   fieldsOfStudy: ["Mathematics", "Computer Science"], abstract: "neural ODE continuous depth differential equations adjoint" },
+    { paperId: "p14", title: "Denoising Diffusion Probabilistic Models",              year: 2020, citationCount: 11000,  fieldsOfStudy: ["Computer Science"], abstract: "DDPM diffusion denoising score matching probabilistic" },
+    { paperId: "p15", title: "Proximal Policy Optimization Algorithms",               year: 2017, citationCount: 9800,   fieldsOfStudy: ["Computer Science"], abstract: "PPO reinforcement learning policy gradient clipping" },
+    { paperId: "p16", title: "Batch Normalization: Accelerating Deep Networks",       year: 2015, citationCount: 48000,  fieldsOfStudy: ["Computer Science"], abstract: "batch normalization internal covariate shift accelerating" },
+    { paperId: "p17", title: "LSTM: Long Short-Term Memory",                          year: 1997, citationCount: 70000,  fieldsOfStudy: ["Computer Science", "Linguistics"], abstract: "LSTM recurrent network memory cell sequence long-term" },
+    { paperId: "p18", title: "Word2Vec: Efficient Word Representations in Space",     year: 2013, citationCount: 31000,  fieldsOfStudy: ["Computer Science", "Linguistics"], abstract: "word2vec word embeddings skip-gram nlp distributed" },
+    { paperId: "p19", title: "U-Net: CNNs for Biomedical Image Segmentation",         year: 2015, citationCount: 40000,  fieldsOfStudy: ["Computer Science", "Medicine"], abstract: "U-Net segmentation biomedical convolutional encoder decoder" },
+    { paperId: "p20", title: "AlphaFold: Protein Structure Prediction",               year: 2021, citationCount: 12000,  fieldsOfStudy: ["Biology", "Computer Science"], abstract: "AlphaFold protein folding structure prediction biology" },
+    { paperId: "r1",  title: "The Transformer: A Novel Neural Network Architecture", year: 2017, citationCount: 5000,   fieldsOfStudy: ["Computer Science"], abstract: "transformer neural network architecture encoder decoder" },
+    { paperId: "r2",  title: "Layer Normalization",                                   year: 2016, citationCount: 14000,  fieldsOfStudy: ["Computer Science", "Mathematics"], abstract: "layer normalization training stabilization" },
+    { paperId: "r3",  title: "Multi-Head Attention Mechanisms",                       year: 2016, citationCount: 3200,   fieldsOfStudy: ["Computer Science"], abstract: "multi-head attention self-attention heads parallel" },
+    { paperId: "r4",  title: "Positional Encoding in Sequence Models",                year: 2017, citationCount: 2100,   fieldsOfStudy: ["Computer Science", "Mathematics"], abstract: "positional encoding sinusoidal sequence position embedding" },
+    { paperId: "r5",  title: "Scaling Laws for Neural Language Models",               year: 2020, citationCount: 4500,   fieldsOfStudy: ["Computer Science"], abstract: "scaling laws compute parameters data neural language models" },
+    { paperId: "r6",  title: "Self-Supervised Learning of Visual Features",           year: 2019, citationCount: 3800,   fieldsOfStudy: ["Computer Science"], abstract: "self-supervised visual representation learning pretext" },
+    { paperId: "r7",  title: "Contrastive Learning of Visual Representations",        year: 2020, citationCount: 6700,   fieldsOfStudy: ["Computer Science"], abstract: "contrastive learning SimCLR visual representations augmentation" },
+    { paperId: "r8",  title: "Graph Neural Networks: A Review of Methods",            year: 2018, citationCount: 8900,   fieldsOfStudy: ["Computer Science", "Mathematics"], abstract: "GNN graph neural network review survey methods" },
+    { paperId: "r9",  title: "Variational Autoencoders for Generative Modeling",      year: 2013, citationCount: 20000,  fieldsOfStudy: ["Computer Science", "Mathematics"], abstract: "VAE variational autoencoder latent space generative model" },
+    { paperId: "r10", title: "Score-Based Generative Modeling Through SDEs",          year: 2020, citationCount: 4200,   fieldsOfStudy: ["Mathematics", "Computer Science"], abstract: "score matching SDE diffusion stochastic differential equations" },
+];
+
+const MOCK_REFS: MockRef[] = [
+    { sourceId: "p1",  targets: ["r1", "r2", "r3", "r4", "p6", "p17"] },
+    { sourceId: "p2",  targets: ["p1", "r2", "p18", "p17", "p6"] },
+    { sourceId: "p3",  targets: ["p1", "p2", "p6", "r5"] },
+    { sourceId: "p4",  targets: ["p8", "p16", "p6"] },
+    { sourceId: "p5",  targets: ["r9", "p6", "p7"] },
+    { sourceId: "p10", targets: ["p1", "p4", "p8", "r6"] },
+    { sourceId: "p11", targets: ["p1", "p10", "r6", "r7"] },
+    { sourceId: "p12", targets: ["p5", "r9", "r10", "p14"] },
+    { sourceId: "p14", targets: ["r9", "r10", "p6"] },
+    { sourceId: "p13", targets: ["p6", "r2", "r9"] },
+    { sourceId: "p15", targets: ["p9", "p6"] },
+    { sourceId: "p16", targets: ["p4", "p6"] },
+    { sourceId: "p19", targets: ["p4", "p16", "p7"] },
+    { sourceId: "p20", targets: ["p19", "p4"] },
+    { sourceId: "p18", targets: ["p17", "r4"] },
+    { sourceId: "r5",  targets: ["p3", "p2", "p1"] },
+    { sourceId: "r7",  targets: ["r6", "p11"] },
+    { sourceId: "r8",  targets: ["p1", "p4"] },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DATA LAYER
+// ─────────────────────────────────────────────────────────────────────────────
+async function fetchGraph(
+    query: string,
+    maxNodes: number,
+    minYear: number,
+    minCitations: number,
+): Promise<GraphData> {
+    return USE_MOCK
+        ? fetchMockGraph(query, maxNodes, minYear, minCitations)
+        : fetchNeo4jGraph(query, maxNodes, minYear, minCitations);
+}
+
+async function fetchMockGraph(
+    query: string,
+    maxNodes: number,
+    minYear: number,
+    minCitations: number,
+): Promise<GraphData> {
+    await new Promise((r) => setTimeout(r, 600));
+    const q = query.toLowerCase().trim();
+
+    const scored = MOCK_PAPERS.map((p) => {
+        let score = 0;
+        if (p.title.toLowerCase().includes(q)) score += 3;
+        if (p.fieldsOfStudy.some((f) => f.toLowerCase().includes(q))) score += 2;
+        if (p.abstract.toLowerCase().includes(q)) score += 1;
+        return { ...p, _score: score };
+    });
+
+    const primaries = scored
+        .filter((p) => p._score! > 0)
+        .filter((p) => (!p.year || p.year >= minYear) && p.citationCount >= minCitations)
+        .sort((a, b) => b._score! - a._score! || b.citationCount - a.citationCount)
+        .slice(0, maxNodes);
+
+    return buildGraph(primaries, MOCK_REFS, MOCK_PAPERS);
+}
+
+async function fetchNeo4jGraph(
+    query: string,
+    maxNodes: number,
+    minYear: number,
+    minCitations: number,
+): Promise<GraphData> {
+    const params = new URLSearchParams({
+        q: query,
+        maxNodes: String(maxNodes),
+        minYear: String(minYear),
+        minCitations: String(minCitations),
+    });
+    const res = await fetch(`${API_BASE}/api/graph?${params}`);
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error((err as { error: string }).error || `Server error ${res.status}`);
+    }
+    const { nodes, links } = (await res.json()) as GraphData;
+    nodes.forEach((n) => {
+        n.id = n.id || (n as unknown as { paperId: string }).paperId;
+        n.color = fieldColor(n.fields || (n as unknown as { fieldsOfStudy: string[] }).fieldsOfStudy || []);
+    });
+    return { nodes, links };
+}
+
+function buildGraph(primaries: Paper[], allRefs: MockRef[], allPapers: Paper[]): GraphData {
+    const nodeMap = new Map<string, GraphNode>();
+
+    primaries.forEach((p) => {
+        nodeMap.set(p.paperId, {
+            id:        p.paperId,
+            title:     p.title,
+            year:      p.year,
+            citations: p.citationCount,
+            fields:    p.fieldsOfStudy,
+            abstract:  p.abstract,
+            color:     fieldColor(p.fieldsOfStudy),
+            isPrimary: true,
+        });
+    });
+
+    const links: GraphLink[] = [];
+    const primaryIds = new Set(nodeMap.keys());
+
+    allRefs.forEach(({ sourceId, targets }) => {
+        if (!primaryIds.has(sourceId)) return;
+        targets.forEach((tid) => {
+            const ref = allPapers.find((p) => p.paperId === tid);
+            if (!ref) return;
+            if (!nodeMap.has(tid)) {
+                nodeMap.set(tid, {
+                    id:        ref.paperId,
+                    title:     ref.title,
+                    year:      ref.year,
+                    citations: ref.citationCount,
+                    fields:    ref.fieldsOfStudy,
+                    abstract:  ref.abstract,
+                    color:     fieldColor(ref.fieldsOfStudy),
+                    isPrimary: false,
+                });
+            }
+            links.push({ source: sourceId, target: tid });
+        });
+    });
+
+    return { nodes: Array.from(nodeMap.values()), links };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STARFIELD
+// ─────────────────────────────────────────────────────────────────────────────
+interface StarFieldProps {
+    width: number;
+    height: number;
+}
+
+function StarField({ width, height }: StarFieldProps) {
+    const ref = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+        const canvas = ref.current;
+        if (!canvas || !width || !height) return;
+        const ctx = canvas.getContext("2d")!;
+
+        const layers = [
+            Array.from({ length: 180 }, () => ({ x: Math.random() * width, y: Math.random() * height, r: Math.random() * 0.6 + 0.1, phase: Math.random() * Math.PI * 2, spd: Math.random() * 0.003 + 0.001, cr: 190, cg: 210, cb: 255, maxA: 0.45 })),
+            Array.from({ length: 90 },  () => ({ x: Math.random() * width, y: Math.random() * height, r: Math.random() * 0.9 + 0.3, phase: Math.random() * Math.PI * 2, spd: Math.random() * 0.005 + 0.002, cr: 220, cg: 225, cb: 255, maxA: 0.65 })),
+            Array.from({ length: 30 },  () => { const w = Math.random() > 0.6; return { x: Math.random() * width, y: Math.random() * height, r: Math.random() * 1.4 + 0.6, phase: Math.random() * Math.PI * 2, spd: Math.random() * 0.007 + 0.003, cr: w ? 255 : 200, cg: w ? 230 : 220, cb: w ? 190 : 255, maxA: 0.85 }; }),
+        ].flat();
+
+        const nebulae = [
+            { x: width * 0.72, y: height * 0.22, rx: width * 0.28, ry: height * 0.22, r: 60,  g: 80,  b: 160, a: 0.045 },
+            { x: width * 0.15, y: height * 0.65, rx: width * 0.22, ry: height * 0.28, r: 80,  g: 40,  b: 140, a: 0.038 },
+            { x: width * 0.55, y: height * 0.78, rx: width * 0.20, ry: height * 0.18, r: 20,  g: 80,  b: 120, a: 0.032 },
+            { x: width * 0.88, y: height * 0.55, rx: width * 0.16, ry: height * 0.22, r: 100, g: 50,  b: 160, a: 0.028 },
+        ];
+
+        interface Shooter { x: number; y: number; len: number; speed: number; angle: number; life: number; maxLife: number; active: boolean; nextAt: number; }
+        const makeShooter = (): Shooter => ({ x: Math.random() * width, y: Math.random() * height * 0.6, len: Math.random() * 90 + 40, speed: Math.random() * 8 + 5, angle: Math.PI / 4 + (Math.random() - 0.5) * 0.3, life: 0, maxLife: Math.random() * 40 + 25, active: false, nextAt: Math.random() * 400 + 100 });
+        const shooters: Shooter[] = Array.from({ length: 4 }, makeShooter);
+
+        // Pre-render nebulae to offscreen canvas
+        const offscreen = document.createElement("canvas");
+        offscreen.width = width; offscreen.height = height;
+        const octx = offscreen.getContext("2d")!;
+        nebulae.forEach((n) => {
+            const maxR = Math.max(n.rx, n.ry);
+            const grd = octx.createRadialGradient(n.x, n.y, 0, n.x, n.y, maxR);
+            grd.addColorStop(0,   `rgba(${n.r},${n.g},${n.b},${n.a})`);
+            grd.addColorStop(0.5, `rgba(${n.r},${n.g},${n.b},${(n.a * 0.4).toFixed(3)})`);
+            grd.addColorStop(1,   `rgba(${n.r},${n.g},${n.b},0)`);
+            octx.save();
+            octx.scale(n.rx / maxR, n.ry / maxR);
+            octx.beginPath();
+            octx.arc((n.x * maxR) / n.rx, (n.y * maxR) / n.ry, maxR, 0, Math.PI * 2);
+            octx.fillStyle = grd;
+            octx.fill();
+            octx.restore();
+        });
+
+        let t = 0;
+        let raf: number;
+
+        const draw = () => {
+            t += 0.016;
+            ctx.fillStyle = "#01020d";
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(offscreen, 0, 0);
+
+            layers.forEach((s) => {
+                const a = (Math.sin(s.phase + t * s.spd * 60) * 0.35 + 0.65) * s.maxA;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(${s.cr},${s.cg},${s.cb},${a.toFixed(2)})`;
+                ctx.fill();
+            });
+
+            shooters.forEach((s) => {
+                if (!s.active) {
+                    s.nextAt--;
+                    if (s.nextAt <= 0) { Object.assign(s, makeShooter(), { active: true, life: 0 }); }
+                    return;
+                }
+                s.life++;
+                const progress = s.life / s.maxLife;
+                const alpha = progress < 0.3 ? progress / 0.3 : (1 - progress) / 0.7;
+                const tx = s.x + Math.cos(s.angle) * s.speed * s.life;
+                const ty = s.y + Math.sin(s.angle) * s.speed * s.life;
+                const tailX = tx - Math.cos(s.angle) * s.len * alpha;
+                const tailY = ty - Math.sin(s.angle) * s.len * alpha;
+                const grd = ctx.createLinearGradient(tailX, tailY, tx, ty);
+                grd.addColorStop(0, "rgba(255,255,255,0)");
+                grd.addColorStop(1, `rgba(220,235,255,${(alpha * 0.7).toFixed(2)})`);
+                ctx.beginPath();
+                ctx.moveTo(tailX, tailY);
+                ctx.lineTo(tx, ty);
+                ctx.strokeStyle = grd;
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+                if (s.life >= s.maxLife) { s.active = false; s.nextAt = Math.random() * 500 + 200; }
+            });
+
+            raf = requestAnimationFrame(draw);
+        };
+
+        draw();
+        return () => cancelAnimationFrame(raf);
+    }, [width, height]);
+
+    return (
+        <canvas
+            ref={ref}
+            width={width}
+            height={height}
+            style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
+        />
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
+export default function PaperGraph() {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const hoveredRef   = useRef<GraphNode | null>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fgRef        = useRef<any>(null);
+
+    const [dims,          setDims]          = useState({ w: 1200, h: 800 });
+    const [query,         setQuery]         = useState("");
+    const [loading,       setLoading]       = useState(false);
+    const [status,        setStatus]        = useState(USE_MOCK ? 'Mock mode — try "transformer", "diffusion", "biology"' : "Connected to Neo4j — enter a topic to explore");
+    const [graphData,     setGraphData]     = useState<GraphData>({ nodes: [], links: [] });
+    const [hoveredNode,   setHoveredNode]   = useState<GraphNode | null>(null);
+    const [mousePos,      setMousePos]      = useState({ x: 0, y: 0 });
+    const [fieldsPresent, setFieldsPresent] = useState<string[]>([]);
+    const [maxNodes,      setMaxNodes]      = useState(20);
+    const [minYear,       setMinYear]       = useState(2010);
+    const [minCitations,  setMinCitations]  = useState(0);
+
+    // Set real window size on mount (avoids SSR mismatch)
+    useEffect(() => {
+        setDims({ w: window.innerWidth, h: window.innerHeight });
+        const obs = new ResizeObserver((entries) => {
+            const { width, height } = entries[0].contentRect;
+            setDims({ w: width, h: height });
+        });
+        if (containerRef.current) obs.observe(containerRef.current);
+        return () => obs.disconnect();
+    }, []);
+
+    // ── Color-clustering force ──────────────────────────────────────────────
+    // Same color → attract (like a spring), different color → repel (short-range)
+    useEffect(() => {
+        if (!fgRef.current || graphData.nodes.length === 0) return;
+
+        const ATTRACT_STRENGTH = 0.25;
+        const REPEL_STRENGTH   = 0.85;   // was 0.35
+        const REPEL_RADIUS     = 160;
+
+        function colorClusterForce(alpha: number) {
+            const nodes = graphData.nodes as Array<GraphNode & { vx?: number; vy?: number }>;
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    const a = nodes[i];
+                    const b = nodes[j];
+                    if (a.x == null || a.y == null || b.x == null || b.y == null) continue;
+
+                    const dx   = (b.x - a.x) || 0.001;
+                    const dy   = (b.y - a.y) || 0.001;
+                    const dist = Math.sqrt(dx * dx + dy * dy) || 0.001;
+                    const nx   = dx / dist;
+                    const ny   = dy / dist;
+
+                    // ── Collision: push apart if nodes overlap ──────────────
+                    const minDist = getNodeRadius(a.citations ?? 0, a.isPrimary ?? false)
+                                  + getNodeRadius(b.citations ?? 0, b.isPrimary ?? false)
+                                  + 2; // 2px gap
+                    if (dist < minDist) {
+                        const overlap = (minDist - dist) / dist * 1.2; // was 0.5
+                        a.vx = (a.vx ?? 0) - nx * overlap;
+                        a.vy = (a.vy ?? 0) - ny * overlap;
+                        b.vx = (b.vx ?? 0) + nx * overlap;
+                        b.vy = (b.vy ?? 0) + ny * overlap;
+                        continue; // skip clustering force while overlapping
+                    }
+
+                    let fx = 0;
+                    let fy = 0;
+
+                    if (a.color === b.color) {
+                        // Spring attraction — scales with distance so clusters pull tight
+                        const pull = ATTRACT_STRENGTH * alpha * (dist / 200);
+                        fx = nx * pull;
+                        fy = ny * pull;
+                    } else if (dist < REPEL_RADIUS) {
+                        // Short-range repulsion — strongest when very close
+                        const push = REPEL_STRENGTH * alpha * ((REPEL_RADIUS - dist) / REPEL_RADIUS);
+                        fx = -nx * push;
+                        fy = -ny * push;
+                    }
+
+                    a.vx = (a.vx ?? 0) + fx;
+                    a.vy = (a.vy ?? 0) + fy;
+                    b.vx = (b.vx ?? 0) - fx;
+                    b.vy = (b.vy ?? 0) - fy;
+                }
+            }
+        }
+
+        fgRef.current.d3Force("color-clustering", colorClusterForce);
+
+        // Remove any leftover collision force from a previous render
+        fgRef.current.d3Force("collision", null);
+
+        fgRef.current.d3ReheatSimulation();
+    }, [graphData]);
+
+    const onMouseMove = useCallback((e: React.MouseEvent) => {
+        setMousePos({ x: e.clientX, y: e.clientY });
+    }, []);
+
+    const onNodeHover = useCallback((node: object | null) => {
+        hoveredRef.current = (node as GraphNode) || null;
+        setHoveredNode((node as GraphNode) || null);
+    }, []);
+
+    const runSearch = useCallback(async () => {
+        if (!query.trim() || loading) return;
+        setLoading(true);
+        setStatus("Scanning the cosmos…");
+        setGraphData({ nodes: [], links: [] });
+        try {
+            const data = await fetchGraph(query, maxNodes, minYear, minCitations);
+            if (data.nodes.length === 0) {
+                setStatus("No results found. Try a different query.");
+                setLoading(false);
+                return;
+            }
+            const fields = [...new Set(data.nodes.flatMap((n) => n.fields))].filter(Boolean);
+            setFieldsPresent(fields.slice(0, 12));
+            setTimeout(() => {
+                setGraphData(data);
+                setStatus(`${data.nodes.length} nodes · ${data.links.length} connections${USE_MOCK ? " (mock)" : " (neo4j)"}`);
+                setLoading(false);
+            }, 60);
+        } catch (e) {
+            setStatus(`Error: ${(e as Error).message}`);
+            setLoading(false);
+        }
+    }, [query, maxNodes, minYear, minCitations, loading]);
+
+    // ── Canvas draw callbacks ───────────────────────────────────────────────
+    const drawNode = useCallback((node: object, ctx: CanvasRenderingContext2D, globalScale: number) => {
+        try {
+            const n = node as GraphNode;
+            if (n.x == null || n.y == null) return;
+            const { x, y, color = DEFAULT_COLOR, citations = 0, isPrimary = false } = n;
+            const isHov = hoveredRef.current?.id === n.id;
+            const radius = getNodeRadius(citations, isPrimary, isHov);
+            const { r, g, b } = hexToRgb(color);
+
+            const sphere = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.3, 0, x, y, radius);
+            sphere.addColorStop(0,   "rgba(255,255,255,0.92)");
+            sphere.addColorStop(0.4, `rgba(${r},${g},${b},1)`);
+            sphere.addColorStop(1,   `rgba(${Math.max(0, r - 55)},${Math.max(0, g - 55)},${Math.max(0, b - 55)},0.8)`);
+            ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fillStyle = sphere; ctx.fill();
+
+            if (isPrimary) {
+                ctx.beginPath(); ctx.arc(x, y, radius + 2.5, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(${r},${g},${b},0.55)`;
+                ctx.lineWidth = 0.9; ctx.stroke();
+            }
+
+            if (globalScale > 2 || isHov) {
+                const label = n.title.length > 40 ? n.title.slice(0, 40) + "…" : n.title;
+                const fs = Math.max(2.5, 11 / globalScale);
+                ctx.font = `${isHov ? "700" : "400"} ${fs}px "Space Mono", monospace`;
+                ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+                ctx.fillStyle = isHov ? "#ffffff" : `rgba(${r},${g},${b},0.88)`;
+                ctx.fillText(label, x, y - radius - 4);
+            }
+        } catch (_) { /* swallow */ }
+    }, []);
+
+    // Pixel-perfect hover hit area — matches exactly what drawNode renders
+    const paintNodePointerArea = useCallback((node: object, color: string, ctx: CanvasRenderingContext2D) => {
+        const n = node as GraphNode;
+        if (n.x == null || n.y == null) return;
+        const radius = getNodeRadius(n.citations ?? 0, n.isPrimary ?? false);
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+    }, []);
+
+    const drawLink = useCallback((link: object, ctx: CanvasRenderingContext2D) => {
+        try {
+            const l = link as { source: GraphNode; target: GraphNode };
+            const { source: s, target: t } = l;
+            if (!s || !t || s.x == null || t.x == null) return;
+            const dx = t.x! - s.x!, dy = t.y! - s.y!;
+            if (dx * dx + dy * dy < 1) return;
+            const { r, g, b } = hexToRgb(s.color || DEFAULT_COLOR);
+            ctx.beginPath();
+            ctx.moveTo(s.x!, s.y!);
+            ctx.lineTo(t.x!, t.y!);
+            ctx.strokeStyle = `rgba(${r},${g},${b},0.22)`;
+            ctx.lineWidth = 0.7; ctx.stroke();
+        } catch (_) { /* swallow */ }
+    }, []);
+
+    const particleColor = useCallback((link: object) => {
+        const l = link as { source?: GraphNode };
+        return l.source?.color || DEFAULT_COLOR;
+    }, []);
+
+    // ── Slider config ───────────────────────────────────────────────────────
+    const sliders = [
+        { label: "Max Nodes",     val: maxNodes,     set: setMaxNodes,     min: 5,    max: 150, step: 1   },
+        { label: "Min Year",      val: minYear,      set: setMinYear,      min: 1990, max: 2024, step: 1  },
+        { label: "Min Citations", val: minCitations, set: setMinCitations, min: 0,    max: 5000, step: 100 },
+    ] as const;
+
+    // ── Render ──────────────────────────────────────────────────────────────
+    return (
+        <div
+            ref={containerRef}
+            onMouseMove={onMouseMove}
+            style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden", background: "#01020d" }}
+        >
+            <StarField width={dims.w} height={dims.h} />
+
+            <div style={{ position: "absolute", inset: 0, zIndex: 2 }}>
+                <ForceGraph2D
+                    ref={fgRef}
+                    width={dims.w}
+                    height={dims.h}
+                    graphData={graphData}
+                    backgroundColor="#01020d"
+                    nodeCanvasObject={drawNode}
+                    nodeCanvasObjectMode={() => "replace"}
+                    nodePointerAreaPaint={paintNodePointerArea}
+                    linkCanvasObject={drawLink}
+                    linkCanvasObjectMode={() => "replace"}
+                    onNodeHover={onNodeHover}
+                    nodeLabel=""
+                    linkDirectionalParticles={2}
+                    linkDirectionalParticleWidth={1.2}
+                    linkDirectionalParticleColor={particleColor}
+                    linkDirectionalParticleSpeed={0.004}
+                    cooldownTicks={150}
+                    d3AlphaDecay={0.025}
+                    d3VelocityDecay={0.35}
+                    enableNodeDrag
+                    enableZoomInteraction
+                />
+            </div>
+
+            {/* ── Sidebar ─────────────────────────────────────────────────── */}
+            <aside style={{
+                position: "absolute", top: 0, left: 0, width: 300, height: "100%", zIndex: 10,
+                background: "linear-gradient(to right, rgba(1,2,13,0.97) 78%, transparent)",
+                padding: "24px 20px", display: "flex", flexDirection: "column", gap: 14,
+                overflowY: "auto", fontFamily: '"Space Mono", monospace', boxSizing: "border-box",
+            }}>
+                <div style={{ fontSize: 10, letterSpacing: "0.35em", color: "rgba(79,195,247,0.5)", fontFamily: '"Orbitron", monospace', textTransform: "uppercase" }}>
+                    Research Graph
+                </div>
+                <div style={{ fontFamily: '"Orbitron", monospace', fontSize: 20, fontWeight: 900, color: "#fff", lineHeight: 1.1, textShadow: "0 0 28px rgba(79,195,247,0.85)", marginBottom: 2 }}>
+                    STELLAR<br />PAPERS
+                </div>
+
+                <div style={{
+                    fontSize: 9, letterSpacing: "0.12em", padding: "3px 8px", borderRadius: 4,
+                    display: "inline-block", alignSelf: "flex-start",
+                    background: USE_MOCK ? "rgba(251,191,36,0.12)" : "rgba(52,211,153,0.12)",
+                    border: `1px solid ${USE_MOCK ? "rgba(251,191,36,0.35)" : "rgba(52,211,153,0.35)"}`,
+                    color: USE_MOCK ? "#fbbf24" : "#34d399",
+                }}>
+                    {USE_MOCK ? "⚡ MOCK DATA" : "🔗 NEO4J LIVE"}
+                </div>
+
+                <input
+                    style={{ width: "100%", padding: "9px 13px", boxSizing: "border-box", background: "rgba(6,14,50,0.85)", border: "1px solid rgba(79,195,247,0.3)", borderRadius: 6, color: "#c8deff", fontFamily: '"Space Mono", monospace', fontSize: 12, outline: "none" }}
+                    placeholder={USE_MOCK ? 'Try: transformer, diffusion…' : "Search papers in Neo4j…"}
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && runSearch()}
+                />
+                <button
+                    onClick={runSearch}
+                    disabled={loading}
+                    style={{ padding: 9, borderRadius: 6, cursor: loading ? "default" : "pointer", background: loading ? "rgba(79,195,247,0.06)" : "rgba(79,195,247,0.14)", border: "1px solid rgba(79,195,247,0.4)", color: "#4fc3f7", fontFamily: '"Orbitron", monospace', fontSize: 11, letterSpacing: "0.12em" }}
+                >
+                    {loading ? "◌  SCANNING…" : "⊕  LAUNCH SEARCH"}
+                </button>
+                <div style={{ fontSize: 10, color: "rgba(79,195,247,0.65)", minHeight: 14, lineHeight: 1.5 }}>{status}</div>
+
+                <hr style={{ border: "none", borderTop: "1px solid rgba(79,195,247,0.18)", margin: 0 }} />
+
+                {sliders.map(({ label, val, set, min, max, step }) => (
+                    <div key={label}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                            <span style={{ fontSize: 10, color: "rgba(200,222,255,0.45)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</span>
+                            <span style={{ fontFamily: '"Orbitron", monospace', fontSize: 12, color: "#4fc3f7" }}>{val.toLocaleString()}</span>
+                        </div>
+                        <input type="range" min={min} max={max} step={step} value={val}
+                            onChange={(e) => (set as (v: number) => void)(+e.target.value)}
+                            style={{ width: "100%", accentColor: "#4fc3f7", cursor: "pointer", display: "block" }}
+                        />
+                    </div>
+                ))}
+
+                {fieldsPresent.length > 0 && (
+                    <>
+                        <hr style={{ border: "none", borderTop: "1px solid rgba(79,195,247,0.18)", margin: 0 }} />
+                        <div style={{ fontSize: 10, color: "rgba(200,222,255,0.45)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Fields of Study</div>
+                        {fieldsPresent.map((f) => {
+                            const c = FIELD_COLORS[f] ?? DEFAULT_COLOR;
+                            return (
+                                <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, color: "rgba(200,222,255,0.7)" }}>
+                                    <div style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: c, boxShadow: `0 0 6px ${c}` }} />
+                                    {f}
+                                </div>
+                            );
+                        })}
+                    </>
+                )}
+
+                <hr style={{ border: "none", borderTop: "1px solid rgba(79,195,247,0.18)", margin: 0 }} />
+                <div style={{ fontSize: 9, color: "rgba(200,222,255,0.28)", lineHeight: 1.8 }}>
+                    Drag nodes · Scroll to zoom<br />
+                    Hover for details · Enter to search
+                    {!USE_MOCK && <><br />Backend: {API_BASE}</>}
+                </div>
+            </aside>
+
+            {/* ── Tooltip ─────────────────────────────────────────────────── */}
+            {hoveredNode && (
+                <div style={{
+                    position: "absolute",
+                    left: Math.min(mousePos.x + 16, dims.w - 300),
+                    top:  Math.max(mousePos.y - 10, 8),
+                    background: "rgba(2,5,22,0.96)",
+                    border: `1px solid ${hoveredNode.color}44`,
+                    borderRadius: 8, padding: "10px 14px", maxWidth: 270,
+                    pointerEvents: "none", zIndex: 30,
+                    boxShadow: `0 0 24px ${hoveredNode.color}28`,
+                    fontFamily: '"Space Mono", monospace',
+                }}>
+                    <div style={{ fontSize: 11, color: hoveredNode.color, marginBottom: 5, lineHeight: 1.5, textShadow: `0 0 8px ${hoveredNode.color}` }}>
+                        {hoveredNode.title}
+                    </div>
+                    <div style={{ fontSize: 10, color: "rgba(200,222,255,0.5)", marginBottom: 3 }}>
+                        {hoveredNode.year ? `📅 ${hoveredNode.year}` : ""}
+                        {hoveredNode.citations ? `  ·  ✦ ${hoveredNode.citations.toLocaleString()} citations` : ""}
+                    </div>
+                    {hoveredNode.fields?.length > 0 && (
+                        <div style={{ fontSize: 9, color: "rgba(200,222,255,0.38)", marginBottom: hoveredNode.abstract ? 4 : 0 }}>
+                            {hoveredNode.fields.join(" · ")}
+                        </div>
+                    )}
+                    {hoveredNode.abstract && (
+                        <div style={{ fontSize: 9, color: "rgba(200,222,255,0.28)", lineHeight: 1.5, marginTop: 4, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 4 }}>
+                            {hoveredNode.abstract.length > 120 ? hoveredNode.abstract.slice(0, 120) + "…" : hoveredNode.abstract}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ── Stats bar ───────────────────────────────────────────────── */}
+            {graphData.nodes.length > 0 && (
+                <div style={{ position: "absolute", bottom: 20, right: 20, display: "flex", gap: 10, zIndex: 10 }}>
+                    {[
+                        { n: graphData.nodes.length,                           l: "Papers"  },
+                        { n: graphData.links.length,                           l: "Links"   },
+                        { n: fieldsPresent.length,                             l: "Fields"  },
+                        { n: graphData.nodes.filter((n) => n.isPrimary).length, l: "Primary" },
+                    ].map(({ n, l }) => (
+                        <div key={l} style={{ background: "rgba(2,5,22,0.9)", border: "1px solid rgba(79,195,247,0.18)", borderRadius: 6, padding: "7px 13px", textAlign: "center" }}>
+                            <div style={{ fontFamily: '"Orbitron", monospace', fontSize: 17, fontWeight: 700, color: "#4fc3f7", textShadow: "0 0 10px rgba(79,195,247,0.65)" }}>{n}</div>
+                            <div style={{ fontSize: 9, color: "rgba(200,222,255,0.38)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{l}</div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
