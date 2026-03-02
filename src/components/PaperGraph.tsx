@@ -541,9 +541,9 @@ export default function PaperGraph() {
     const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const [fieldsPresent, setFieldsPresent] = useState<string[]>([]);
-    const [maxNodes, setMaxNodes] = useState(2000);
+    const [maxNodes, setMaxNodes] = useState(50);
     const [minYear, setMinYear] = useState(1980);
-    const [maxYear, setMaxYear] = useState(2024);
+    const [maxYear, setMaxYear] = useState(new Date().getFullYear());
     const [minCitations, setMinCitations] = useState(0);
     const [authorFilter, setAuthorFilter] = useState("");
     const [fieldFilter, setFieldFilter] = useState("");
@@ -801,8 +801,22 @@ export default function PaperGraph() {
 
     const sliders = [
         { label: "Max Papers", val: maxNodes, set: setMaxNodes, min: 1, max: 2000, step: 1 },
-        { label: "Min Year", val: minYear, set: setMinYear, min: 1900, max: 2024, step: 1 },
-        { label: "Max Year", val: maxYear, set: setMaxYear, min: 1900, max: 2024, step: 1 },
+        {
+            label: "Min Year",
+            val: minYear,
+            set: setMinYear,
+            min: 1900,
+            max: new Date().getFullYear(),
+            step: 1,
+        },
+        {
+            label: "Max Year",
+            val: maxYear,
+            set: setMaxYear,
+            min: 1900,
+            max: new Date().getFullYear(),
+            step: 1,
+        },
         {
             label: "Min Citations",
             val: minCitations,
