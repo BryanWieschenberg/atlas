@@ -1000,7 +1000,9 @@ export default function PaperGraph() {
                         marginBottom: 2,
                     }}
                 >
-                <img src="/logo_white.svg" ></img>
+                {
+                isDark ? <img src="/logo_white.svg" ></img> : <img src="/logo_dark.svg" ></img>
+                }
                 </div>
 
                 <input
