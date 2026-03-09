@@ -801,7 +801,14 @@ export default function PaperGraph() {
     );
 
     const sliders = [
-        { label: "Max Papers", val: maxNodes, set: setMaxNodes, min: 1, max: 2000, step: 1 },
+        { 
+            label: "Max Papers", 
+            val: maxNodes, 
+            set: setMaxNodes, 
+            min: 1, 
+            max: 2000, 
+            step: 1 
+        },
         {
             label: "Min Year",
             val: minYear,
