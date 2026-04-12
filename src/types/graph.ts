@@ -45,4 +45,5 @@ export interface GraphFilters {
     field?: string;
     keyword?: string;
     limit?: number;
+    offset?: number;
 }

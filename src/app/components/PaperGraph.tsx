@@ -154,6 +154,7 @@ async function fetchGraph(
     minCitations: number,
     authorFilter: string,
     fieldFilter: string,
+    offset: number,
 ): Promise<GraphData> {
     return fetchNeo4jGraph(
         query,
@@ -163,6 +164,7 @@ async function fetchGraph(
         minCitations,
         authorFilter,
         fieldFilter,
+        offset,
     );
 }
 
@@ -174,9 +176,11 @@ async function fetchNeo4jGraph(
     minCitations: number,
     authorFilter: string,
     fieldFilter: string,
+    offset: number,
 ): Promise<GraphData> {
     const params = new URLSearchParams({
         limit: String(maxNodes),
+        offset: String(offset),
     });
     if (query.trim()) params.set("keyword", query.trim());
     if (minYear > 0) params.set("publication_year_start", String(minYear));
@@ -521,6 +525,8 @@ export default function PaperGraph() {
             : "Connected to Neo4j — enter a topic to explore",
     );
     const [graphData, setGraphData] = useState<GraphData>({ nodes: [], links: [] });
+    const [page, setPage] = useState(0);
+    const [hasMore, setHasMore] = useState(false);
     const adjacencyList = useMemo(() => {
         const adj = new Map<string, Set<string>>();
         graphData.nodes.forEach((n) => adj.set(n.id, new Set()));
@@ -663,8 +669,9 @@ export default function PaperGraph() {
         }
     };
 
-    const runSearch = useCallback(async () => {
+    const runSearch = useCallback(async (pageOverride?: number) => {
         if (loading) return;
+        const targetPage = pageOverride ?? 0;
         setLoading(true);
         setSelectedNode(null);
         setStatus(
@@ -682,17 +689,23 @@ export default function PaperGraph() {
                 minCitations,
                 authorFilter,
                 fieldFilter,
+                targetPage * maxNodes,
             );
             if (data.nodes.length === 0) {
-                setStatus("No results found. Try a different query.");
+                setStatus(targetPage > 0 ? "No more results." : "No results found. Try a different query.");
+                setHasMore(false);
                 setLoading(false);
                 return;
             }
             const fields = [...new Set(data.nodes.flatMap((n) => n.fields))].filter(Boolean);
             setFieldsPresent(fields);
+            setPage(targetPage);
+            setHasMore(data.nodes.length >= maxNodes);
             setTimeout(() => {
                 setGraphData(data);
-                setStatus(`${data.nodes.length} papers · ${data.links.length} connections`);
+                setStatus(
+                    `Page ${targetPage + 1} · ${data.nodes.length} papers · ${data.links.length} connections`,
+                );
                 setLoading(false);
             }, 60);
         } catch (e) {
@@ -702,7 +715,7 @@ export default function PaperGraph() {
     }, [query, maxNodes, minYear, maxYear, minCitations, authorFilter, fieldFilter, loading]);
 
     useEffect(() => {
-        runSearch();
+        runSearch(0);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -957,12 +970,13 @@ export default function PaperGraph() {
                     cooldownTicks={150}
                     d3AlphaDecay={0.025}
                     d3VelocityDecay={0.35}
-                    enableNodeDrag
+                    enableNodeDrag={false}
                     enableZoomInteraction
-                    onRenderFramePost={(ctx, globalScale) => {
+                    onRenderFramePost={(ctx: CanvasRenderingContext2D, globalScale: number) => {
                         if (selectedNode && selectedNode.x != null && selectedNode.y != null) {
                             const n = selectedNode as GraphNode;
-                            const { x, y } = n;
+                            const x = n.x as number;
+                            const y = n.y as number;
                             const label = n.title;
                             const radius = getNodeRadius(n.degree ?? 0, true);
                             const scale = 1.5;
@@ -1028,10 +1042,10 @@ export default function PaperGraph() {
                     placeholder={USE_MOCK ? "Try: transformer, diffusion…" : "Search papers..."}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && runSearch()}
+                    onKeyDown={(e) => e.key === "Enter" && runSearch(0)}
                 />
                 <button
-                    onClick={runSearch}
+                    onClick={() => runSearch(0)}
                     disabled={loading}
                     style={{
                         padding: 9,
@@ -1047,6 +1061,46 @@ export default function PaperGraph() {
                 >
                     {loading ? "◌  SCANNING…" : "⊕  LAUNCH SEARCH"}
                 </button>
+                <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                        onClick={() => runSearch(page - 1)}
+                        disabled={loading || page === 0}
+                        style={{
+                            flex: 1,
+                            padding: 7,
+                            borderRadius: 6,
+                            cursor: loading || page === 0 ? "default" : "pointer",
+                            background: loading || page === 0 ? t.accentBgMuted : t.accentBg,
+                            border: `1px solid ${t.accentBorderStrong}`,
+                            color: t.accent,
+                            fontFamily: '"Orbitron", monospace',
+                            fontSize: 10,
+                            letterSpacing: "0.12em",
+                            opacity: page === 0 ? 0.5 : 1,
+                        }}
+                    >
+                        ‹  PREV
+                    </button>
+                    <button
+                        onClick={() => runSearch(page + 1)}
+                        disabled={loading || !hasMore}
+                        style={{
+                            flex: 1,
+                            padding: 7,
+                            borderRadius: 6,
+                            cursor: loading || !hasMore ? "default" : "pointer",
+                            background: loading || !hasMore ? t.accentBgMuted : t.accentBg,
+                            border: `1px solid ${t.accentBorderStrong}`,
+                            color: t.accent,
+                            fontFamily: '"Orbitron", monospace',
+                            fontSize: 10,
+                            letterSpacing: "0.12em",
+                            opacity: !hasMore ? 0.5 : 1,
+                        }}
+                    >
+                        NEXT  ›
+                    </button>
+                </div>
                 <div
                     style={{
                         fontSize: 10,
@@ -1132,7 +1186,7 @@ export default function PaperGraph() {
                                 type="text"
                                 value={authorFilter}
                                 onChange={(e) => setAuthorFilter(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && runSearch()}
+                                onKeyDown={(e) => e.key === "Enter" && runSearch(0)}
                                 placeholder="Author name..."
                                 style={{
                                     width: "100%",
@@ -1164,7 +1218,7 @@ export default function PaperGraph() {
                                 type="text"
                                 value={fieldFilter}
                                 onChange={(e) => setFieldFilter(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && runSearch()}
+                                onKeyDown={(e) => e.key === "Enter" && runSearch(0)}
                                 placeholder="Field name..."
                                 style={{
                                     width: "100%",
@@ -1328,9 +1382,8 @@ export default function PaperGraph() {
                 >
                     {[
                         { n: graphData.nodes.length, l: "Papers" },
-                        { n: graphData.links.length, l: "Links" },
+                        { n: graphData.links.length, l: "Connections" },
                         { n: fieldsPresent.length, l: "Fields" },
-                        { n: graphData.nodes.filter((n) => n.isPrimary).length, l: "Primary" },
                     ].map(({ n, l }) => (
                         <div
                             key={l}

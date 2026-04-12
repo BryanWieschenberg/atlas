@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
         field: searchParams.get("field") ?? undefined,
         keyword: searchParams.get("keyword") ?? undefined,
         limit: searchParams.get("limit") ? parseInt(searchParams.get("limit")!) : 100,
+        offset: searchParams.get("offset") ? parseInt(searchParams.get("offset")!) : 0,
     };
 
     try {
@@ -41,6 +42,7 @@ export async function GET(req: NextRequest) {
         const conditions: string[] = [];
         const params: Record<string, any> = {
             limit: neo4j.int(filters.limit ?? 100),
+            offset: neo4j.int(filters.offset ?? 0),
         };
 
         if (filters.author) {
@@ -71,6 +73,7 @@ export async function GET(req: NextRequest) {
       ${whereClause}
       WITH p
       ORDER BY p.cited_by_count DESC
+      SKIP $offset
       LIMIT $limit
       WITH collect(p) AS topNodes
       UNWIND topNodes AS node

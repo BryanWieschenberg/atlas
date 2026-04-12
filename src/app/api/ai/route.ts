@@ -53,8 +53,6 @@ export async function POST(req: NextRequest) {
                 --- END GRAPH DATA ---`;
         }
 
-        console.log(contextBlock)
-
         const fullPrompt = `${SYSTEM_PROMPT}${contextBlock}\n\nUser question: ${message}`;
 
         const result = await model.generateContentStream(fullPrompt);

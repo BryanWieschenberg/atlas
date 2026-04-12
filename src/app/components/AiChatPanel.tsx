@@ -9,6 +9,93 @@ interface Message {
     content: string;
 }
 
+function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
+    const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g);
+    return tokens.filter(Boolean).map((tok, i) => {
+        const key = `${keyPrefix}-${i}`;
+        if (tok.startsWith("**") && tok.endsWith("**")) {
+            return <strong key={key}>{tok.slice(2, -2)}</strong>;
+        }
+        if (tok.startsWith("*") && tok.endsWith("*")) {
+            return <em key={key}>{tok.slice(1, -1)}</em>;
+        }
+        if (tok.startsWith("`") && tok.endsWith("`")) {
+            return (
+                <code
+                    key={key}
+                    style={{
+                        fontFamily: '"Space Mono", monospace',
+                        background: "rgba(127,127,127,0.15)",
+                        padding: "1px 4px",
+                        borderRadius: 3,
+                        fontSize: "0.95em",
+                    }}
+                >
+                    {tok.slice(1, -1)}
+                </code>
+            );
+        }
+        return <span key={key}>{tok}</span>;
+    });
+}
+
+function renderMarkdown(content: string): React.ReactNode {
+    const lines = content.split("\n");
+    const blocks: React.ReactNode[] = [];
+    let listBuffer: string[] = [];
+
+    const flushList = () => {
+        if (listBuffer.length === 0) return;
+        blocks.push(
+            <ul key={`ul-${blocks.length}`} style={{ margin: "4px 0", paddingLeft: 18, listStyle: "disc" }}>
+                {listBuffer.map((item, i) => (
+                    <li key={i} style={{ marginBottom: 2 }}>
+                        {renderInline(item, `li-${blocks.length}-${i}`)}
+                    </li>
+                ))}
+            </ul>,
+        );
+        listBuffer = [];
+    };
+
+    lines.forEach((raw, idx) => {
+        const line = raw.trimEnd();
+        const listMatch = /^\s*[-*]\s+(.*)$/.exec(line);
+        if (listMatch) {
+            listBuffer.push(listMatch[1]);
+            return;
+        }
+        flushList();
+        if (line.trim() === "") {
+            blocks.push(<div key={`sp-${idx}`} style={{ height: 6 }} />);
+            return;
+        }
+        const h3 = /^###\s+(.*)$/.exec(line);
+        const h2 = /^##\s+(.*)$/.exec(line);
+        const h1 = /^#\s+(.*)$/.exec(line);
+        if (h1 || h2 || h3) {
+            const txt = (h1?.[1] ?? h2?.[1] ?? h3?.[1]) as string;
+            const size = h1 ? "1.15em" : h2 ? "1.08em" : "1.02em";
+            blocks.push(
+                <div
+                    key={`h-${idx}`}
+                    style={{ fontWeight: 700, fontSize: size, margin: "6px 0 2px" }}
+                >
+                    {renderInline(txt, `h-${idx}`)}
+                </div>,
+            );
+            return;
+        }
+        blocks.push(
+            <div key={`p-${idx}`} style={{ marginBottom: 2 }}>
+                {renderInline(line, `p-${idx}`)}
+            </div>,
+        );
+    });
+    flushList();
+    return blocks;
+}
+
 interface AiChatPanelProps {
     open: boolean;
     onClose: () => void;
@@ -264,11 +351,17 @@ export default function AiChatPanel({ open, onClose, graphContext }: AiChatPanel
                             fontSize: 11,
                             lineHeight: 1.7,
                             color: isDark ? "#c8deff" : "#334155",
-                            whiteSpace: "pre-wrap",
+                            whiteSpace: msg.role === "user" ? "pre-wrap" : "normal",
                             wordBreak: "break-word",
                         }}
                     >
-                        {msg.content || (streaming && i === messages.length - 1 ? "●" : "")}
+                        {msg.role === "ai"
+                            ? msg.content
+                                ? renderMarkdown(msg.content)
+                                : streaming && i === messages.length - 1
+                                  ? "●"
+                                  : ""
+                            : msg.content}
                     </div>
                 ))}
                 <div ref={messagesEndRef} />

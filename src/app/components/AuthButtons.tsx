@@ -29,7 +29,7 @@ export default function AuthButtons({ showThemeToggle = true }: AuthButtonsProps
                 </span>
                 <button
                     onClick={() => signOut({ callbackUrl: "/" })}
-                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-colors"
+                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 cursor-pointer dark:hover:text-white transition-colors"
                 >
                     Sign Out
                 </button>
