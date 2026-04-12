@@ -2,7 +2,7 @@ import neo4j from "neo4j-driver";
 import { NextRequest, NextResponse } from "next/server";
 import { runQuery } from "../../../lib/neo4j";
 import { toNode } from "../../../lib/transform";
-import { GraphFilters, GraphResponse, GraphEdge } from "../../../types/graph";
+import { GraphFilters, GraphResponse, GraphEdge, PaperNode } from "../../../types/graph";
 import { LRUCache } from "lru-cache";
 
 const graphCache = new LRUCache<string, GraphResponse>({
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
         }
 
         const conditions: string[] = [];
-        const params: Record<string, any> = {
+        const params: Record<string, unknown> = {
             limit: neo4j.int(filters.limit ?? 100),
             offset: neo4j.int(filters.offset ?? 0),
         };
@@ -86,10 +86,13 @@ export async function GET(req: NextRequest) {
         collect({source: node.id, target: target.id, type: type(r)}) AS edges
     `;
 
-        const records = await runQuery(cypherQuery, params);
+        const records = await runQuery<{
+            p: { properties: Record<string, unknown> & { id: string } };
+            edges: { source: string; target: string; type?: string }[];
+        }>(cypherQuery, params);
 
         const nodeIds = new Set<string>();
-        const nodes: any[] = [];
+        const nodes: PaperNode[] = [];
         const edges: GraphEdge[] = [];
 
         for (const record of records) {
@@ -109,7 +112,7 @@ export async function GET(req: NextRequest) {
                         edges.push({
                             source: edge.source,
                             target: edge.target,
-                            type: edge.type || "cites",
+                            type: (edge.type || "cites") as GraphEdge["type"],
                             weight: 1,
                         });
                     }

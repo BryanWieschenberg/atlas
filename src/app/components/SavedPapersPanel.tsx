@@ -28,6 +28,7 @@ export default function SavedPapersPanel({ open, onClose, refreshKey = 0 }: Save
 
     const fetchPapers = useCallback(async () => {
         if (!session?.user) return;
+        await Promise.resolve();
         setLoading(true);
         try {
             const res = await fetch("/api/saved");
@@ -40,7 +41,9 @@ export default function SavedPapersPanel({ open, onClose, refreshKey = 0 }: Save
     }, [session?.user]);
 
     useEffect(() => {
-        if (open && session?.user) fetchPapers();
+        if (open && session?.user) {
+            void Promise.resolve().then(() => fetchPapers());
+        }
     }, [open, session?.user, refreshKey, fetchPapers]);
 
     const removePaper = async (paperId: string) => {
@@ -182,7 +185,7 @@ export default function SavedPapersPanel({ open, onClose, refreshKey = 0 }: Save
                         <HiBookmark size={24} style={{ opacity: 0.3 }} />
                         No saved papers yet.
                         <br />
-                        Hover a node and click "Save" to add papers here.
+                        Hover a node and click &quot;Save&quot; to add papers here.
                     </div>
                 )}
 

@@ -4,41 +4,37 @@ import { runQuery } from "../../../lib/neo4j";
 import { toNode } from "../../../lib/transform";
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const query = searchParams.get("q");
+    const { searchParams } = new URL(req.url);
+    const query = searchParams.get("q");
 
-  if (!query) {
-    return NextResponse.json(
-      { error: "Missing search query parameter 'q'" },
-      { status: 400 },
-    );
-  }
+    if (!query) {
+        return NextResponse.json({ error: "Missing search query parameter 'q'" }, { status: 400 });
+    }
 
-  try {
-    const cypher = `
+    try {
+        const cypher = `
       MATCH (p:Paper)
       WHERE toLower(p.title) CONTAINS toLower($query)
       RETURN p
       LIMIT $limit
     `;
 
-    const records = await runQuery(cypher, {
-      query,
-      limit: neo4j.int(20),
-    });
+        const records = await runQuery<{
+            p: { properties: Record<string, unknown> & { id: string } };
+        }>(cypher, {
+            query,
+            limit: neo4j.int(20),
+        });
 
-    const nodes = records.map((record) => toNode(record.p.properties));
+        const nodes = records.map((record) => toNode(record.p.properties));
 
-    return NextResponse.json({
-      results: nodes,
-      total: nodes.length,
-      query,
-    });
-  } catch (error) {
-    console.error("Search API error:", error);
-    return NextResponse.json(
-      { error: "Failed to execute search" },
-      { status: 500 },
-    );
-  }
+        return NextResponse.json({
+            results: nodes,
+            total: nodes.length,
+            query,
+        });
+    } catch (error) {
+        console.error("Search API error:", error);
+        return NextResponse.json({ error: "Failed to execute search" }, { status: 500 });
+    }
 }

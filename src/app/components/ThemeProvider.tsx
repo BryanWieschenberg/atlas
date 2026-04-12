@@ -21,13 +21,18 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
-        const stored = localStorage.getItem("atlas-theme") as Theme | null;
-        if (stored === "light" || stored === "dark") {
-            setTheme(stored);
-        } else {
-            setTheme("dark");
+        if (typeof window !== "undefined") {
+            const stored = localStorage.getItem("atlas-theme") as Theme | null;
+            if (stored === "light" || stored === "dark") {
+                if (stored !== "dark") {
+                    void (async () => {
+                        await Promise.resolve();
+                        setTheme(stored);
+                    })();
+                }
+            }
         }
-        setMounted(true);
+        void Promise.resolve().then(() => setMounted(true));
     }, []);
 
     useEffect(() => {

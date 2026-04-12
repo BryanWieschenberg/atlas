@@ -1,9 +1,9 @@
-export default {
-    content: [
-        "./src/**/*.{js,ts,jsx,tsx}",
-    ],
+const config = {
+    content: ["./src/**/*.{js,ts,jsx,tsx}"],
     theme: {
         extend: {},
     },
     plugins: [],
 };
+
+export default config;

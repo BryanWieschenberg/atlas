@@ -41,15 +41,23 @@ export async function POST(req: NextRequest) {
                 ${(nodes || [])
                     .slice(0, 80)
                     .map(
-                        (n: any) =>
-                            `• ${n.title} | ${n.year || "?"} | ${n.citations?.toLocaleString() || 0} citations | ${n.fields?.join(", ") || "?"}`,
+                        (n: {
+                            title: string;
+                            year?: number | null;
+                            citations?: number | null;
+                            fields?: string[];
+                        }) =>
+                            `• ${n.title} | ${n.year ?? "?"} | ${n.citations?.toLocaleString() ?? 0} citations | ${n.fields?.join(", ") ?? "?"}`,
                     )
                     .join("\n")}
 
                 Connections: ${(links || [])
-                                .slice(0, 50)
-                                .map((l: any) => `${l.source.title} → ${l.target.title}`)
-                                .join(", ")}
+                    .slice(0, 50)
+                    .map(
+                        (l: { source: { title: string }; target: { title: string } }) =>
+                            `${l.source.title} → ${l.target.title}`,
+                    )
+                    .join(", ")}
                 --- END GRAPH DATA ---`;
         }
 
@@ -79,9 +87,10 @@ export async function POST(req: NextRequest) {
                 "Transfer-Encoding": "chunked",
             },
         });
-    } catch (error: any) {
-        console.error("Gemini API error:", error);
-        return new Response(JSON.stringify({ error: error.message || "Gemini API error" }), {
+    } catch (error) {
+        const err = error as Error;
+        console.error("Gemini API error:", err);
+        return new Response(JSON.stringify({ error: err.message || "Gemini API error" }), {
             status: 500,
             headers: { "Content-Type": "application/json" },
         });

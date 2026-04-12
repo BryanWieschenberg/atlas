@@ -1,4 +1,4 @@
-const autocannon = require("autocannon");
+import autocannon from "autocannon";
 
 const requests = [];
 for (let i = 0; i < 1000; i++) {
@@ -12,6 +12,7 @@ for (let i = 0; i < 1000; i++) {
     }
 }
 
+// eslint-disable-next-line no-console
 console.log("Starting Autocannon Load Test...");
 
 const instance = autocannon(
@@ -21,7 +22,7 @@ const instance = autocannon(
         duration: 30,
         requests: requests,
     },
-    (err, result) => {
+    (err) => {
         if (err) {
             console.error("Test failed:", err);
             return;

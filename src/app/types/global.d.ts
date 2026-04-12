@@ -32,10 +32,10 @@ declare module "react-force-graph-2d" {
 }
 
 declare module "d3-force" {
-    export function forceCollide(radius?: number | ((node: any) => number)): any;
-    export function forceLink(links?: any[]): any;
-    export function forceManyBody(): any;
-    export function forceCenter(x?: number, y?: number): any;
-    export function forceX(x?: number): any;
-    export function forceY(y?: number): any;
+    export function forceCollide(radius?: number | ((node: unknown) => number)): unknown;
+    export function forceLink(links?: unknown[]): unknown;
+    export function forceManyBody(): unknown;
+    export function forceCenter(x?: number, y?: number): unknown;
+    export function forceX(x?: number): unknown;
+    export function forceY(y?: number): unknown;
 }

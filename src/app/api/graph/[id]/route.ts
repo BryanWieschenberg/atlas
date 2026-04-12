@@ -17,7 +17,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
              collect(distinct other) AS incoming
     `;
 
-        const records = await runQuery(cypher, { id });
+        const records = await runQuery<{
+            p: { properties: Record<string, unknown> & { id: string } };
+            outgoing: { properties: Record<string, unknown> & { id: string } }[];
+            incoming: { properties: Record<string, unknown> & { id: string } }[];
+        }>(cypher, { id });
 
         if (records.length === 0) {
             return NextResponse.json({ error: "Paper not found" }, { status: 404 });
@@ -29,20 +33,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         const incoming = record.incoming;
 
         const neighborNodes = [
-            ...outgoing.map((n: any) => toNode(n.properties)),
-            ...incoming.map((n: any) => toNode(n.properties)),
+            ...outgoing.map((n: { properties: Record<string, unknown> }) => toNode(n.properties)),
+            ...incoming.map((n: { properties: Record<string, unknown> }) => toNode(n.properties)),
         ];
 
         const allNodes = [mainNode, ...neighborNodes];
 
         const edges: GraphEdge[] = [
-            ...outgoing.map((n: any) => ({
+            ...outgoing.map((n: { properties: { id: string } }) => ({
                 source: mainNode.id,
                 target: n.properties.id,
                 type: "cites" as const,
                 weight: 1,
             })),
-            ...incoming.map((n: any) => ({
+            ...incoming.map((n: { properties: { id: string } }) => ({
                 source: n.properties.id,
                 target: mainNode.id,
                 type: "cites" as const,

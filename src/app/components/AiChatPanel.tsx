@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useTheme } from "./ThemeProvider";
+import { GraphNode, GraphLink } from "../../types/paper-graph";
 import { HiX, HiPaperAirplane } from "react-icons/hi";
 
 interface Message {
@@ -47,7 +48,10 @@ function renderMarkdown(content: string): React.ReactNode {
     const flushList = () => {
         if (listBuffer.length === 0) return;
         blocks.push(
-            <ul key={`ul-${blocks.length}`} style={{ margin: "4px 0", paddingLeft: 18, listStyle: "disc" }}>
+            <ul
+                key={`ul-${blocks.length}`}
+                style={{ margin: "4px 0", paddingLeft: 18, listStyle: "disc" }}
+            >
                 {listBuffer.map((item, i) => (
                     <li key={i} style={{ marginBottom: 2 }}>
                         {renderInline(item, `li-${blocks.length}-${i}`)}
@@ -100,8 +104,8 @@ interface AiChatPanelProps {
     open: boolean;
     onClose: () => void;
     graphContext: {
-        nodes: any[];
-        links: any[];
+        nodes: GraphNode[];
+        links: GraphLink[];
         fields: string[];
     };
 }
@@ -142,7 +146,7 @@ export default function AiChatPanel({ open, onClose, graphContext }: AiChatPanel
             });
 
             if (!res.ok) {
-                const err = await res.json().catch(() => ({ error: "Unknown error" }));
+                await res.json().catch(() => ({ error: "Unknown error" }));
                 setMessages((prev) => {
                     const updated = [...prev];
                     updated[updated.length - 1] = {
@@ -171,7 +175,7 @@ export default function AiChatPanel({ open, onClose, graphContext }: AiChatPanel
                     });
                 }
             }
-        } catch (err: any) {
+        } catch {
             setMessages((prev) => {
                 const updated = [...prev];
                 updated[updated.length - 1] = {

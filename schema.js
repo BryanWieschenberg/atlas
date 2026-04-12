@@ -1,3 +1,4 @@
+/* eslint-disable */
 db.createCollection("users", {
     validator: {
         $jsonSchema: {
